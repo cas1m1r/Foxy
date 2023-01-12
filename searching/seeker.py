@@ -12,12 +12,22 @@ import os
 
 class ImageFinder:
 	home = 'http://duckduckgo.com'
+	depth = 100
 
-	def __init__(self, term):
+	def __init__(self, term, opts={}):
+		self.options = self.check_options(opts)
 		self.idir = f'{term.upper().replace(" ","_")}'
 		self.base = f'{self.home}/{term}'
 		self.browser = self.open_browser()
 		self.pages = self.search_term(term)
+
+	def check_options(self, opts):
+		config = {'width':600, 'height':800,'safe':True}
+		if 'safe' in opts.keys():
+			if type(opts['safe']) == bool:
+				print(f'[>] Changing to search safety options to {opts["safe"]}')
+				config['safe'] = opts['safe']
+		return config
 
 	def open_browser(self):
 		# can set options here
@@ -25,8 +35,13 @@ class ImageFinder:
 
 
 	def search_term(self, query):
-		self.browser.get(f'{self.base}?ia=images&ia=images')
+		self.browser.get(f'{self.base}')
 		random_sleep(3)
+		# disable safe search if options specify to
+		if not self.options['safe']:
+			self.browser = disable_safe_search(self.browser)
+			self.browser.get(f'{self.base}?ia=images&iax=images')
+		random_sleep(3)	
 		self.browser.find_element(By.CSS_SELECTOR,'.js-zci-link--images').click()
 		random_sleep(3)
 		# find all image links 
@@ -56,6 +71,9 @@ class ImageFinder:
 			i += 1
 			# return or close browser 
 			self.browser.close()
+			# close after reaching depth
+			if i >= depth:
+				break
 		return links
 
 def parse_element(item, data):
@@ -74,10 +92,27 @@ def random_scroll(browser):
 	browser.execute_script(f"window.scrollTo(0,{H})")
 	return browser
 
+def disable_safe_search(b:Firefox):
+	b.find_element(By.CSS_SELECTOR,'div.dropdown:nth-child(2) > a:nth-child(1)').click()
+	random_sleep(1)
+	b.find_element(By.CSS_SELECTOR,'.modal__list > li:nth-child(4) > a:nth-child(1)').click()
+	random_sleep(1)
+	return b
+
+
 if __name__ == '__main__':
-	if len(sys.argv)>1:
+	conf = {}
+	if ''.join(sys.argv).find('--search')>=0:
+		if '--unsafe' in sys.argv:
+				conf['safe'] = False
+		# get search term
+		args = ' '.join(sys.argv)
+		term = args[args.find('--search')+9:]
 		try:
-			search = ImageFinder(' '.join(sys.argv[1:]))
+			
+			finder = ImageFinder(term, conf)
+			# results = finder.search_term(term)
 		except KeyboardInterrupt:
 			print(f'Moving on...')
 			exit()
+
